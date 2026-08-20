@@ -1,18 +1,35 @@
 import { useEffect, useState } from 'react';
-import { fmt, getJson } from '../api';
+import { fmt, getJson, KNOTS_TO_KMH } from '../api';
 import { Blueprint } from '../ui';
+
+const ALARM_NAMES = {
+  hardAcceleration: 'резкое ускорение',
+  hardBraking: 'резкое торможение',
+  hardCornering: 'резкий поворот',
+  powerCut: 'отключение питания',
+  lowBattery: 'низкий заряд батареи',
+  sos: 'SOS',
+};
+
+function overspeedText(e) {
+  const a = e?.attributes ?? {};
+  const speed = typeof a.speed === 'number' ? Math.round(a.speed * KNOTS_TO_KMH) : null;
+  const limit = typeof a.speedLimit === 'number' ? Math.round(a.speedLimit * KNOTS_TO_KMH) : null;
+  if (speed != null && limit != null) return `превышение скорости — ${speed} км/ч при лимите ${limit} км/ч`;
+  return 'превышение скорости';
+}
 
 const EVENT_TEXT = {
   deviceOnline: ['INFO', 'ingest', (n) => `${n}: устройство вышло на связь`],
   deviceOffline: ['WARN', 'ingest', (n) => `${n}: потеря связи`],
-  deviceOverspeed: ['ALARM', 'rules', (n) => `${n}: превышение скорости`],
+  deviceOverspeed: ['ALARM', 'rules', (n, e) => `${n}: ${overspeedText(e)}`],
   geofenceEnter: ['INFO', 'rules', (n) => `${n}: въезд в геозону`],
   geofenceExit: ['INFO', 'rules', (n) => `${n}: выезд из геозоны`],
   ignitionOn: ['INFO', 'ingest', (n) => `${n}: зажигание включено`],
   ignitionOff: ['INFO', 'ingest', (n) => `${n}: зажигание выключено`],
   deviceMoving: ['INFO', 'rules', (n) => `${n}: начало движения`],
   deviceStopped: ['INFO', 'rules', (n) => `${n}: остановка`],
-  alarm: ['ALARM', 'rules', (n) => `${n}: тревога`],
+  alarm: ['ALARM', 'rules', (n, e) => `${n}: тревога${e?.attributes?.alarm ? ` — ${ALARM_NAMES[e.attributes.alarm] ?? e.attributes.alarm}` : ''}`],
 };
 
 export default function Logs({ devices }) {
@@ -80,7 +97,7 @@ export default function Logs({ devices }) {
                 <td className="text-muted">{new Date(event.eventTime).toLocaleTimeString('ru-RU')}</td>
                 <td><span className={level === 'INFO' ? 'tag tag-neutral' : 'tag tag-outline'}>{level}</span></td>
                 <td>{service}</td>
-                <td>{text(nameById[event.deviceId] ?? `#${event.deviceId}`)}</td>
+                <td>{text(nameById[event.deviceId] ?? `#${event.deviceId}`, event)}</td>
               </tr>
             );
           })}
