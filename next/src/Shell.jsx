@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from './ui';
 import Dashboard from './sections/Dashboard';
 import Clients from './sections/Clients';
+import Groups from './sections/Groups';
 import Devices from './sections/Devices';
 import Billing from './sections/Billing';
 import Sim from './sections/Sim';
@@ -12,6 +13,7 @@ import Logs from './sections/Logs';
 const NAV = [
   ['dash', 'Дашборд', 'layout-dashboard'],
   ['clients', 'Клиенты', 'users'],
+  ['groups', 'Группы', 'boxes'],
   ['devices', 'Трекеры', 'cpu'],
   ['billing', 'Биллинг', 'receipt'],
   ['sim', 'SIM-карты', 'smartphone'],
@@ -21,7 +23,7 @@ const NAV = [
 ];
 
 const TITLES = {
-  dash: 'Дашборд', clients: 'Клиенты', devices: 'Устройства / трекеры', billing: 'Биллинг и тарифы',
+  dash: 'Дашборд', clients: 'Клиенты', groups: 'Группы', devices: 'Устройства / трекеры', billing: 'Биллинг и тарифы',
   sim: 'SIM-карты', orders: 'Заявки на установку', users: 'Пользователи и роли', logs: 'Логи и мониторинг',
 };
 
@@ -89,6 +91,7 @@ export default function Shell({ user, devices, users, reload }) {
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {section === 'dash' && <Dashboard {...sectionProps} />}
           {section === 'clients' && <Clients {...sectionProps} />}
+          {section === 'groups' && <Groups {...sectionProps} />}
           {section === 'devices' && <Devices {...sectionProps} />}
           {section === 'billing' && <Billing {...sectionProps} />}
           {section === 'sim' && <Sim {...sectionProps} />}
