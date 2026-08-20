@@ -4,6 +4,16 @@ import { api, getJson } from '../api';
 import { Blueprint } from '../ui';
 
 /** Геозоны платформы: общие (создаёт админ) и клиентские; админ видит и может удалять все. */
+
+// area для Traccar ограничена 4096 символами: 5 знаков (~1 м) и прореживание до ~190 точек
+function buildPolygonArea(points) {
+  const maxPoints = 190;
+  const thinned = points.length > maxPoints
+    ? points.filter((_, i) => i % Math.ceil(points.length / maxPoints) === 0)
+    : points;
+  return `POLYGON((${thinned.map((p) => `${p.latitude.toFixed(5)} ${p.longitude.toFixed(5)}`).join(', ')}))`;
+}
+
 export default function Geofences({ users, search }) {
   const [zones, setZones] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -26,7 +36,7 @@ export default function Geofences({ users, search }) {
   const save = async () => {
     setBusy(true);
     try {
-      const area = `POLYGON((${points.map((p) => `${p.latitude.toFixed(6)} ${p.longitude.toFixed(6)}`).join(', ')}))`;
+      const area = buildPolygonArea(points);
       await api('/geofences', { method: 'POST', body: JSON.stringify({ name: name.trim(), area }) });
       setDrawing(false);
       setPoints([]);
