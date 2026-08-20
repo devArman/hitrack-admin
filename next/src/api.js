@@ -1,29 +1,10 @@
-// Обёртки над Traccar API (/api, сессионная кука) и hitrac-api (/v2, JWT)
+// Админка целиком на hitrac-api (/v2, JWT). Traccar-специфика (создание
+// устройств, команды, статистика, отчёты) — через прокси нашего бэкенда.
+
+const TOKEN_KEY = 'ht_token';
 
 export async function api(path, options = {}) {
-  const response = await fetch(`/api${path}`, options);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text.split('\n')[0] || `HTTP ${response.status}`);
-  }
-  return response;
-}
-
-export const getJson = (path) => api(path, { headers: { Accept: 'application/json' } }).then((r) => r.json());
-
-export const getSession = () => getJson('/session');
-
-export const login = (email, password) =>
-  api('/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ email, password }),
-  }).then((r) => r.json());
-
-// ── hitrac-api (/v2): свои пользователи и роли, вход по JWT ──
-
-export async function v2(path, options = {}) {
-  const token = localStorage.getItem('v2token');
+  const token = localStorage.getItem(TOKEN_KEY);
   const response = await fetch(`/v2${path}`, {
     ...options,
     headers: {
@@ -34,7 +15,7 @@ export async function v2(path, options = {}) {
     },
   });
   if (response.status === 401) {
-    localStorage.removeItem('v2token');
+    localStorage.removeItem(TOKEN_KEY);
     throw new Error('unauthorized');
   }
   if (!response.ok) {
@@ -42,16 +23,31 @@ export async function v2(path, options = {}) {
     try { message = (await response.json()).message ?? message; } catch { /* not json */ }
     throw new Error(Array.isArray(message) ? message.join(', ') : message);
   }
-  return response.json();
+  return response;
 }
 
-export const v2Login = async (email, password) => {
-  const result = await v2('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-  localStorage.setItem('v2token', result.accessToken);
+export const getJson = (path) => api(path).then((r) => r.json());
+
+export const getSession = () => {
+  if (!localStorage.getItem(TOKEN_KEY)) return Promise.reject(new Error('no token'));
+  return getJson('/me');
+};
+
+export const login = async (email, password) => {
+  const response = await fetch('/v2/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw new Error('bad credentials');
+  const result = await response.json();
+  localStorage.setItem(TOKEN_KEY, result.accessToken);
   return result.user;
 };
 
-export const hasV2Token = () => Boolean(localStorage.getItem('v2token'));
+export const logout = () => localStorage.removeItem(TOKEN_KEY);
+
+export const isAdmin = (user) => Boolean(user?.role?.permissions?.includes('*'));
 
 // ── производные значения ──
 

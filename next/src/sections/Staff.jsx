@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { formatTime, hasV2Token, v2, v2Login } from '../api';
+import { api, formatTime, getJson } from '../api';
 import { Blueprint } from '../ui';
 
-/** Пользователи и роли платформы — живут в hitrac-api (ht_users / ht_roles), вход по JWT. */
-export default function Staff() {
-  const [authed, setAuthed] = useState(hasV2Token());
+/** Сотрудники платформы и роли (ht_users / ht_roles). Клиенты — в разделе «Клиенты». */
+export default function Staff({ reload }) {
   const [users, setUsers] = useState(null);
   const [roles, setRoles] = useState([]);
   const [inviting, setInviting] = useState(false);
@@ -12,20 +11,22 @@ export default function Staff() {
   const [error, setError] = useState(null);
 
   const load = () => {
-    Promise.all([v2('/users'), v2('/roles')])
-      .then(([userList, roleList]) => { setUsers(userList); setRoles(roleList); })
-      .catch((e) => { if (e.message === 'unauthorized') setAuthed(false); });
+    Promise.all([getJson('/users'), getJson('/roles')])
+      .then(([userList, roleList]) => {
+        setUsers(userList.filter((u) => u.role?.name !== 'client'));
+        setRoles(roleList);
+      })
+      .catch(() => {});
   };
 
-  useEffect(() => { if (authed) load(); }, [authed]);
+  useEffect(load, []);
 
-  if (!authed) return <V2Login onSuccess={() => setAuthed(true)} />;
   if (users === null) return <div className="text-muted" style={{ padding: 20 }}>Загрузка…</div>;
 
   const invite = async () => {
     setError(null);
     try {
-      await v2('/users', {
+      await api('/users', {
         method: 'POST',
         body: JSON.stringify({
           name: form.name, email: form.email, password: form.password,
@@ -35,13 +36,14 @@ export default function Staff() {
       setInviting(false);
       setForm({ name: '', email: '', password: '', roleId: '' });
       load();
+      reload();
     } catch (e) {
       setError(e.message);
     }
   };
 
   const toggleDisabled = async (user) => {
-    await v2(`/users/${user.id}`, { method: 'PATCH', body: JSON.stringify({ disabled: !user.disabled }) });
+    await api(`/users/${user.id}`, { method: 'PATCH', body: JSON.stringify({ disabled: !user.disabled }) });
     load();
   };
 
@@ -57,7 +59,7 @@ export default function Staff() {
             <tr key={u.id}>
               <td><b>{u.name}</b></td>
               <td>{u.email}</td>
-              <td><span className={u.role?.name === 'admin' ? 'tag tag-accent-2' : 'tag tag-neutral'}>{u.role?.name ?? '—'}</span></td>
+              <td><span className={u.role?.permissions?.includes('*') ? 'tag tag-accent-2' : 'tag tag-neutral'}>{u.role?.name ?? '—'}</span></td>
               <td className="text-muted">{formatTime(u.createdAt)}</td>
               <td><span className={u.disabled ? 'tag tag-neutral' : 'tag tag-accent'}>{u.disabled ? 'Отключён' : 'Активен'}</span></td>
               <td>
@@ -106,40 +108,6 @@ export default function Staff() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function V2Login({ onSuccess }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-
-  const submit = async (event) => {
-    event.preventDefault();
-    setError(null);
-    try {
-      await v2Login(email, password);
-      onSuccess();
-    } catch {
-      setError('Неверный email или пароль');
-    }
-  };
-
-  return (
-    <div style={{ padding: 20, display: 'grid', placeItems: 'start' }}>
-      <Blueprint style={{ padding: 20, width: 'min(380px, 100%)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <h5 style={{ margin: 0 }}>Вход в hitrac-api</h5>
-        <div className="text-muted" style={{ fontSize: 13 }}>
-          Пользователи и роли платформы живут в новом бэкенде — войди своим аккаунтом hitrac-api.
-        </div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="field"><label>Email</label><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-          <div className="field"><label>Пароль</label><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-          {error && <div style={{ fontSize: 13, color: '#c0392b' }}>{error}</div>}
-          <button className="btn btn-primary" type="submit" disabled={!email || !password}>Войти</button>
-        </form>
-      </Blueprint>
     </div>
   );
 }

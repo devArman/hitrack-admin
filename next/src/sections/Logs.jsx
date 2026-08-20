@@ -22,10 +22,10 @@ export default function Logs({ devices }) {
 
   useEffect(() => {
     const start = performance.now();
-    getJson('/server').then(() => setApiMs(Math.round(performance.now() - start))).catch(() => {});
+    getJson('/health').then(() => setApiMs(Math.round(performance.now() - start))).catch(() => {});
 
     const from = new Date(); from.setHours(0, 0, 0, 0);
-    getJson(`/statistics?from=${from.toISOString()}&to=${new Date().toISOString()}`)
+    getJson(`/admin/statistics?from=${from.toISOString()}&to=${new Date().toISOString()}`)
       .then((rows) => setMessagesToday(rows.reduce((s, r) => s + (r.messagesStored ?? 0), 0)))
       .catch(() => {});
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api, getJson } from '../api';
+import { useState } from 'react';
+import { api } from '../api';
 import { Blueprint } from '../ui';
 
 const genPassword = () => {
@@ -7,42 +7,23 @@ const genPassword = () => {
   return Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => abc[b % abc.length]).join('');
 };
 
-export default function Clients({ users, devices, search }) {
-  const [deviceMap, setDeviceMap] = useState({}); // userId -> devices[]
-  const [open, setOpen] = useState(null);
+/** Клиенты живут в НАШЕЙ базе (ht_users, роль client); трекеры — привязки ht_user_devices. */
+export default function Clients({ users, devices, search, reload }) {
   const [creating, setCreating] = useState(false);
-  const [created, setCreated] = useState(null); // данные для передачи клиенту
-  const [localUsers, setLocalUsers] = useState(null);
-  const [refresh, setRefresh] = useState(0);
+  const [created, setCreated] = useState(null);
+  const [open, setOpen] = useState(null);
 
-  const list = (localUsers ?? users).filter((u) => !u.administrator);
-
-  useEffect(() => {
-    let alive = true;
-    // прямые связи + доступ через группы: /devices?userId возвращает только прямые
-    getJson('/devices?all=true').then((allDevices) =>
-      Promise.all((localUsers ?? users).map(async (u) => {
-        const [direct, groups] = await Promise.all([
-          getJson(`/devices?userId=${u.id}`).catch(() => []),
-          getJson(`/groups?userId=${u.id}`).catch(() => []),
-        ]);
-        const groupIds = new Set(groups.map((g) => g.id));
-        const byId = new Map(direct.map((d) => [d.id, d]));
-        allDevices.forEach((d) => { if (groupIds.has(d.groupId)) byId.set(d.id, d); });
-        return [u.id, [...byId.values()]];
-      })),
-    ).then((entries) => { if (alive) setDeviceMap(Object.fromEntries(entries)); }).catch(() => {});
-    return () => { alive = false; };
-  }, [users, localUsers, refresh]);
+  const deviceById = Object.fromEntries(devices.map((d) => [d.id, d]));
+  const clients = users.filter((u) => u.role?.name === 'client');
 
   const q = search.trim().toLowerCase();
   const filtered = q
-    ? list.filter((u) => [u.name, u.email, u.phone].some((f) => f?.toLowerCase().includes(q)))
-    : list;
+    ? clients.filter((u) => [u.name, u.email, u.phone].some((f) => f?.toLowerCase().includes(q)))
+    : clients;
 
   const exportCsv = () => {
     const rows = [['Клиент', 'Email', 'Телефон', 'Объектов', 'Статус']];
-    filtered.forEach((u) => rows.push([u.name, u.email, u.phone ?? '', deviceMap[u.id]?.length ?? 0, u.disabled ? 'Отключён' : 'Активен']));
+    filtered.forEach((u) => rows.push([u.name, u.email, u.phone ?? '', u.deviceIds.length, u.disabled ? 'Отключён' : 'Активен']));
     const csv = rows.map((r) => r.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv' }));
@@ -51,13 +32,8 @@ export default function Clients({ users, devices, search }) {
   };
 
   const patchUser = async (user, patch) => {
-    const response = await api(`/users/${user.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...user, ...patch }),
-    });
-    const updated = await response.json();
-    setLocalUsers((prev) => (prev ?? users).map((u) => (u.id === updated.id ? updated : u)));
+    await api(`/users/${user.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    reload();
   };
 
   return (
@@ -75,7 +51,7 @@ export default function Clients({ users, devices, search }) {
             <UserRow
               key={u.id}
               user={u}
-              devices={deviceMap[u.id]}
+              devices={u.deviceIds.map((id) => deviceById[id]).filter(Boolean)}
               open={open === u.id}
               toggle={() => setOpen(open === u.id ? null : u.id)}
               patchUser={patchUser}
@@ -87,14 +63,9 @@ export default function Clients({ users, devices, search }) {
       {creating && (
         <CreateDialog
           devices={devices}
-          deviceMap={deviceMap}
+          users={users}
           onClose={() => setCreating(false)}
-          onCreated={(user, credentials) => {
-            setLocalUsers([...(localUsers ?? users), user]);
-            setCreating(false);
-            setCreated(credentials);
-            setRefresh((n) => n + 1);
-          }}
+          onCreated={(credentials) => { setCreating(false); setCreated(credentials); reload(); }}
         />
       )}
       {created && <CredentialsDialog credentials={created} onClose={() => setCreated(null)} />}
@@ -102,14 +73,13 @@ export default function Clients({ users, devices, search }) {
   );
 }
 
-function CreateDialog({ devices, deviceMap, onClose, onCreated }) {
+function CreateDialog({ devices, users, onClose, onCreated }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: genPassword() });
   const [selected, setSelected] = useState(new Set());
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // кому уже принадлежит трекер — чтобы отличать свободные
-  const owned = new Set(Object.values(deviceMap).flat().map((d) => d.id));
+  const owned = new Set(users.flatMap((u) => u.deviceIds ?? []));
   const sorted = [...devices].sort((a, b) => (owned.has(a.id) - owned.has(b.id)) || a.name.localeCompare(b.name));
 
   const toggle = (id) => {
@@ -122,22 +92,18 @@ function CreateDialog({ devices, deviceMap, onClose, onCreated }) {
     setError(null);
     setBusy(true);
     try {
-      const response = await api('/users', {
+      await api('/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name, email: form.email.trim(), phone: form.phone, password: form.password }),
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email.trim(),
+          phone: form.phone,
+          password: form.password,
+          roleName: 'client',
+          deviceIds: [...selected],
+        }),
       });
-      const user = await response.json();
-      for (const deviceId of selected) {
-        // привязки по одной: Traccar принимает по одной паре за запрос
-        // eslint-disable-next-line no-await-in-loop
-        await api('/permissions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, deviceId }),
-        });
-      }
-      onCreated(user, { ...form, devices: sorted.filter((d) => selected.has(d.id)).map((d) => d.name) });
+      onCreated({ ...form, devices: sorted.filter((d) => selected.has(d.id)).map((d) => d.name) });
     } catch (e) {
       setError(e.message);
       setBusy(false);
@@ -223,18 +189,9 @@ function UserRow({ user, devices, open, toggle, patchUser }) {
   const [busy, setBusy] = useState(false);
   const [newPassword, setNewPassword] = useState(null);
 
-  const toggleDisabled = async () => {
+  const run = async (patch, after) => {
     setBusy(true);
-    try { await patchUser(user, { disabled: !user.disabled }); } finally { setBusy(false); }
-  };
-
-  const resetPassword = async () => {
-    const password = genPassword();
-    setBusy(true);
-    try {
-      await patchUser(user, { password });
-      setNewPassword(password);
-    } finally { setBusy(false); }
+    try { await patchUser(user, patch); after?.(); } finally { setBusy(false); }
   };
 
   return (
@@ -242,7 +199,7 @@ function UserRow({ user, devices, open, toggle, patchUser }) {
       <tr>
         <td><b>{user.name}</b><div className="text-muted" style={{ fontSize: 12 }}>{user.email}</div></td>
         <td>{user.phone || '—'}</td>
-        <td>{devices ? devices.length : '…'}</td>
+        <td>{user.deviceIds.length}</td>
         <td>3 000 ֏</td>
         <td className="text-muted">—</td>
         <td>
@@ -256,8 +213,8 @@ function UserRow({ user, devices, open, toggle, patchUser }) {
         <tr>
           <td colSpan={7} style={{ padding: 12 }}>
             <Blueprint style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-              {(devices ?? []).length === 0 && <span className="text-muted">Устройств нет</span>}
-              {(devices ?? []).map((d) => (
+              {devices.length === 0 && <span className="text-muted">Устройств нет</span>}
+              {devices.map((d) => (
                 <div key={d.id} style={{ display: 'flex', gap: 10 }}>
                   <b>{d.name}</b>
                   <span className="text-muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{d.uniqueId}</span>
@@ -267,16 +224,19 @@ function UserRow({ user, devices, open, toggle, patchUser }) {
                 </div>
               ))}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-                <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={toggleDisabled}>
+                <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => run({ disabled: !user.disabled })}>
                   {user.disabled ? 'Включить клиента' : 'Отключить клиента'}
                 </button>
-                <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={resetPassword}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12 }}
+                  disabled={busy}
+                  onClick={() => { const p = genPassword(); run({ password: p }, () => setNewPassword(p)); }}
+                >
                   Сменить пароль
                 </button>
                 {newPassword && (
-                  <span style={{ fontFamily: 'monospace', fontSize: 13 }}>
-                    Новый пароль: <b>{newPassword}</b>
-                  </span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 13 }}>Новый пароль: <b>{newPassword}</b></span>
                 )}
               </div>
             </Blueprint>

@@ -6,7 +6,7 @@ export default function Billing({ devices, users }) {
   const kpi = [
     { k: 'Расчётный MRR', v: `${fmt(estimated)} ֏` },
     { k: 'Трекеров на тарифе', v: fmt(devices.length) },
-    { k: 'Клиентов', v: fmt(users.filter((u) => !u.administrator).length) },
+    { k: 'Клиентов', v: fmt(users.filter((u) => u.role?.name === 'client').length) },
   ];
 
   return (

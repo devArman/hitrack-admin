@@ -8,51 +8,36 @@ const COMMAND_LABELS = {
   engineResume: 'Разблокировать двигатель',
 };
 
-export default function Devices({ devices, users, search }) {
-  const [owners, setOwners] = useState({}); // deviceId -> имена клиентов
+export default function Devices({ devices, users, search, reload }) {
   const [positions, setPositions] = useState({});
-  const [commandsFor, setCommandsFor] = useState(null); // { device, types }
+  const [commandsFor, setCommandsFor] = useState(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: '', uniqueId: '', model: '', userId: '' });
   const [error, setError] = useState(null);
-  const [added, setAdded] = useState([]);
+
+  // владельцы — из нашей карты прав (deviceIds пользователей)
+  const owners = {};
+  users.forEach((u) => (u.deviceIds ?? []).forEach((id) => {
+    owners[id] = owners[id] ? `${owners[id]}, ${u.name}` : u.name;
+  }));
 
   useEffect(() => {
-    let alive = true;
-    Promise.all(users.filter((u) => !u.administrator).map(async (u) => {
-      const [direct, groups] = await Promise.all([
-        getJson(`/devices?userId=${u.id}`).catch(() => []),
-        getJson(`/groups?userId=${u.id}`).catch(() => []),
-      ]);
-      return [u, direct, new Set(groups.map((g) => g.id))];
-    })).then((entries) => {
-      if (!alive) return;
-      const map = {};
-      entries.forEach(([u, direct, groupIds]) => {
-        const ids = new Set(direct.map((d) => d.id));
-        devices.forEach((d) => { if (groupIds.has(d.groupId)) ids.add(d.id); });
-        ids.forEach((id) => { map[id] = map[id] ? `${map[id]}, ${u.name}` : u.name; });
-      });
-      setOwners(map);
-    });
-    getJson('/positions').then((list) => {
-      if (alive) setPositions(Object.fromEntries(list.map((p) => [p.deviceId, p])));
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [users, devices]);
+    getJson('/positions')
+      .then((list) => setPositions(Object.fromEntries(list.map((p) => [p.deviceId, p]))))
+      .catch(() => {});
+  }, [devices]);
 
-  const all = [...devices, ...added.filter((a) => !devices.some((d) => d.id === a.id))];
   const q = search.trim().toLowerCase();
   const filtered = q
-    ? all.filter((d) => [d.name, d.uniqueId, owners[d.id]].some((f) => f?.toLowerCase().includes(q)))
-    : all;
+    ? devices.filter((d) => [d.name, d.uniqueId, owners[d.id]].some((f) => f?.toLowerCase().includes(q)))
+    : devices;
 
-  const online = all.filter((d) => d.status === 'online').length;
-  const never = all.filter((d) => !d.lastUpdate).length;
+  const online = devices.filter((d) => d.status === 'online').length;
+  const never = devices.filter((d) => !d.lastUpdate).length;
 
   const openCommands = async (device) => {
     try {
-      const types = await getJson(`/commands/types?deviceId=${device.id}&textChannel=false`);
+      const types = await getJson(`/commands/types?deviceId=${device.id}`);
       setCommandsFor({ device, types: types.map((t) => t.type).filter((t) => COMMAND_LABELS[t]) });
     } catch {
       setCommandsFor({ device, types: [] });
@@ -63,11 +48,7 @@ export default function Devices({ devices, users, search }) {
     const { device } = commandsFor;
     setCommandsFor(null);
     try {
-      await api('/commands/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId: device.id, type, attributes: {} }),
-      });
+      await api('/commands/send', { method: 'POST', body: JSON.stringify({ deviceId: device.id, type }) });
       alert(`${COMMAND_LABELS[type]}: команда отправлена (${device.name})`);
     } catch (e) {
       alert(`Не удалось отправить: ${e.message}`);
@@ -77,22 +58,18 @@ export default function Devices({ devices, users, search }) {
   const create = async () => {
     setError(null);
     try {
-      const response = await api('/devices', {
+      await api('/admin/devices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name, uniqueId: form.uniqueId, model: form.model || null }),
+        body: JSON.stringify({
+          name: form.name,
+          uniqueId: form.uniqueId,
+          model: form.model || undefined,
+          userId: form.userId ? Number(form.userId) : undefined,
+        }),
       });
-      const device = await response.json();
-      if (form.userId) {
-        await api('/permissions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: Number(form.userId), deviceId: device.id }),
-        });
-      }
-      setAdded([...added, device]);
       setAdding(false);
       setForm({ name: '', uniqueId: '', model: '', userId: '' });
+      reload();
     } catch (e) {
       setError(e.message);
     }
@@ -103,7 +80,7 @@ export default function Devices({ devices, users, search }) {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <button className="btn btn-primary" onClick={() => setAdding(true)}>+ Добавить трекер</button>
         <span className="tag tag-accent">На связи: {online}</span>
-        <span className="tag tag-neutral">Офлайн: {all.length - online - never}</span>
+        <span className="tag tag-neutral">Офлайн: {devices.length - online - never}</span>
         <span className="tag tag-outline">Не подключались: {never}</span>
       </div>
       <table className="table">
@@ -157,7 +134,7 @@ export default function Devices({ devices, users, search }) {
               <label>Клиент</label>
               <select className="input" value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })}>
                 <option value="">— не привязывать —</option>
-                {users.filter((u) => !u.administrator).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {users.filter((u) => u.role?.name === 'client').map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
             {error && <div style={{ fontSize: 13, color: '#c0392b' }}>{error}</div>}

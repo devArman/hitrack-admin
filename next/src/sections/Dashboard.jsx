@@ -7,7 +7,7 @@ export default function Dashboard({ devices, users }) {
 
   useEffect(() => {
     const from = new Date(Date.now() - 84 * 86400000);
-    getJson(`/statistics?from=${from.toISOString()}&to=${new Date().toISOString()}`)
+    getJson(`/admin/statistics?from=${from.toISOString()}&to=${new Date().toISOString()}`)
       .then((rows) => {
         // группируем дневную статистику по неделям: максимум активных устройств
         const byWeek = new Map();
@@ -26,7 +26,7 @@ export default function Dashboard({ devices, users }) {
   const offline = devices.length - online - never;
   const stale = devices.filter((d) => d.lastUpdate && d.status !== 'online'
     && Date.now() - new Date(d.lastUpdate).getTime() > 86400000).length;
-  const clients = users.filter((u) => !u.administrator).length;
+  const clients = users.filter((u) => u.role?.name === 'client').length;
 
   const kpi = [
     { k: 'Активных трекеров', v: fmt(online), delta: `из ${devices.length} всего`, deltaColor: 'var(--color-accent)' },

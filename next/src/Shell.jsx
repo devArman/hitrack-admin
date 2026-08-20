@@ -25,7 +25,7 @@ const TITLES = {
   sim: 'SIM-карты', orders: 'Заявки на установку', users: 'Пользователи и роли', logs: 'Логи и мониторинг',
 };
 
-export default function Shell({ user, devices, users }) {
+export default function Shell({ user, devices, users, reload }) {
   const [section, setSection] = useState('dash');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') ?? 'light');
   const [search, setSearch] = useState('');
@@ -33,7 +33,7 @@ export default function Shell({ user, devices, users }) {
   useEffect(() => { localStorage.setItem('theme', theme); }, [theme]);
 
   const initials = (user.name || user.email).split(/[\s@]+/).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('');
-  const sectionProps = { devices, users, search, setSection };
+  const sectionProps = { devices, users, search, setSection, reload };
 
   return (
     <div data-theme={theme} style={{ display: 'flex', height: '100vh', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)', overflow: 'hidden' }}>
