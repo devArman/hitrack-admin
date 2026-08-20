@@ -76,7 +76,7 @@ export default function Dashboard({ devices, users }) {
           {health.map((h) => (
             <div key={h.label} style={{ fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{h.label}</span><b>{h.n}</b></div>
-              <div style={{ height: 5, background: 'var(--color-neutral-200)', marginTop: 4 }}>
+              <div style={{ height: 5, borderRadius: 3, overflow: 'hidden', background: 'var(--color-neutral-200)', marginTop: 4 }}>
                 <div style={{ height: '100%', width: `${Math.round((h.n / total) * 100)}%`, background: h.color }} />
               </div>
             </div>

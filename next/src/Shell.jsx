@@ -105,7 +105,7 @@ export default function Shell({ user, devices, users, reload }) {
             <input className="input" placeholder="Поиск: клиент, IMEI, номер…" style={{ width: 260, minHeight: 32 }} value={search} onChange={(e) => setSearch(e.target.value)} />
             <span className="tag tag-accent-2">admin</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-              <span style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'var(--grad-brand)', color: '#fff', fontFamily: 'var(--font-heading)', fontSize: 13 }}>
+              <span style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, background: 'var(--grad-brand)', color: '#fff', fontFamily: 'var(--font-heading)', fontSize: 13 }}>
                 {initials}
               </span>
               {user.name || user.email}
