@@ -11,9 +11,11 @@ import Sim from './sections/Sim';
 import Orders from './sections/Orders';
 import Staff from './sections/Staff';
 import Logs from './sections/Logs';
+import MapAll from './sections/MapAll';
 
 const NAV = [
   ['dash', 'Дашборд', 'layout-dashboard'],
+  ['map', 'Карта', 'map-pin'],
   ['clients', 'Клиенты', 'users'],
   ['groups', 'Группы', 'boxes'],
   ['announcements', 'Объявления', 'megaphone'],
@@ -27,7 +29,7 @@ const NAV = [
 ];
 
 const TITLES = {
-  dash: 'Дашборд', clients: 'Клиенты', groups: 'Группы', announcements: 'Объявления', geofences: 'Геозоны', devices: 'Устройства / трекеры', billing: 'Биллинг и тарифы',
+  dash: 'Дашборд', map: 'Карта', clients: 'Клиенты', groups: 'Группы', announcements: 'Объявления', geofences: 'Геозоны', devices: 'Устройства / трекеры', billing: 'Биллинг и тарифы',
   sim: 'SIM-карты', orders: 'Заявки на установку', users: 'Пользователи и роли', logs: 'Логи и мониторинг',
 };
 
@@ -114,8 +116,9 @@ export default function Shell({ user, devices, users, reload }) {
             </div>
           </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflow: section === 'geofences' ? 'hidden' : 'auto', display: section === 'geofences' ? 'flex' : 'block' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: ['geofences', 'map'].includes(section) ? 'hidden' : 'auto', display: ['geofences', 'map'].includes(section) ? 'flex' : 'block' }}>
           {section === 'dash' && <Dashboard {...sectionProps} />}
+          {section === 'map' && <MapAll {...sectionProps} />}
           {section === 'clients' && <Clients {...sectionProps} />}
           {section === 'groups' && <Groups {...sectionProps} />}
           {section === 'announcements' && <Announcements {...sectionProps} />}
