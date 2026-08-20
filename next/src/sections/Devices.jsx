@@ -10,6 +10,7 @@ const COMMAND_LABELS = {
 
 export default function Devices({ devices, users, search, reload }) {
   const [positions, setPositions] = useState({});
+  const [calibrations, setCalibrations] = useState({}); // deviceId -> {sensorKey, points}
   const [commandsFor, setCommandsFor] = useState(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null); // { device, name, model }
@@ -25,6 +26,9 @@ export default function Devices({ devices, users, search, reload }) {
   useEffect(() => {
     getJson('/positions')
       .then((list) => setPositions(Object.fromEntries(list.map((p) => [p.deviceId, p]))))
+      .catch(() => {});
+    getJson('/admin/fuel-calibrations')
+      .then((list) => setCalibrations(Object.fromEntries(list.map((c) => [c.deviceId, c]))))
       .catch(() => {});
   }, [devices]);
 
@@ -106,7 +110,13 @@ export default function Devices({ devices, users, search, reload }) {
                 <td><span className={state.tagClass}>{state.label}</span></td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => openCommands(d)}>Команды</button>
-                  <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setEditing({ device: d, name: d.name, model: d.model ?? '' })}>Изменить</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setEditing({
+                    device: d,
+                    name: d.name,
+                    model: d.model ?? '',
+                    sensorKey: calibrations[d.id]?.sensorKey ?? 'io270',
+                    points: (calibrations[d.id]?.points ?? []).map((p) => ({ raw: String(p.raw), liters: String(p.liters) })),
+                  })}>Изменить</button>
                 </td>
               </tr>
             );
@@ -136,7 +146,37 @@ export default function Devices({ devices, users, search, reload }) {
           <div className="dialog" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-title">{editing.device.name}</div>
             <div className="field"><label>Название объекта</label><input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-            <div className="field"><label>Модель трекера</label><input className="input" placeholder="Teltonika FMB120" value={editing.model} onChange={(e) => setEditing({ ...editing, model: e.target.value })} /></div>
+            <div className="field"><label>Модель трекера</label><input className="input" placeholder="Teltonika FMC920" value={editing.model} onChange={(e) => setEditing({ ...editing, model: e.target.value })} /></div>
+            <div className="field">
+              <label>
+                Тарировка ДУТ — датчик{' '}
+                <span style={{ fontFamily: 'monospace' }}>{editing.sensorKey}</span>
+                {positions[editing.device.id]?.attributes?.[editing.sensorKey] !== undefined && (
+                  <> · сейчас: <b>{positions[editing.device.id].attributes[editing.sensorKey]}</b></>
+                )}
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {editing.points.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input className="input" style={{ width: 120 }} placeholder="сырое" value={p.raw}
+                      onChange={(e) => setEditing({ ...editing, points: editing.points.map((x, j) => (j === i ? { ...x, raw: e.target.value } : x)) })} />
+                    <span className="text-muted">→</span>
+                    <input className="input" style={{ width: 100 }} placeholder="литры" value={p.liters}
+                      onChange={(e) => setEditing({ ...editing, points: editing.points.map((x, j) => (j === i ? { ...x, liters: e.target.value } : x)) })} />
+                    <span className="text-muted" style={{ fontSize: 12 }}>л</span>
+                    <button className="btn btn-ghost" style={{ fontSize: 12 }}
+                      onClick={() => setEditing({ ...editing, points: editing.points.filter((_, j) => j !== i) })}>✕</button>
+                  </div>
+                ))}
+                <button className="btn btn-secondary" style={{ alignSelf: 'flex-start', fontSize: 12 }}
+                  onClick={() => setEditing({ ...editing, points: [...editing.points, { raw: '', liters: '' }] })}>
+                  + Точка тарировки
+                </button>
+                <div className="text-muted" style={{ fontSize: 11 }}>
+                  Минимум 2 точки (например, каждые 20 л). Пустой список — тарировка выключена.
+                </div>
+              </div>
+            </div>
             <div className="dialog-actions">
               <button className="btn btn-secondary" onClick={() => setEditing(null)}>Отмена</button>
               <button
@@ -147,6 +187,16 @@ export default function Devices({ devices, users, search, reload }) {
                     await api(`/admin/devices/${editing.device.id}`, {
                       method: 'PATCH',
                       body: JSON.stringify({ name: editing.name, model: editing.model }),
+                    });
+                    await api(`/admin/fuel-calibrations/${editing.device.id}`, {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        sensorKey: editing.sensorKey,
+                        points: editing.points
+                          .filter((p) => String(p.raw).trim() !== '' && String(p.liters).trim() !== '')
+                          .map((p) => ({ raw: Number(p.raw), liters: Number(p.liters) }))
+                          .filter((p) => Number.isFinite(p.raw) && Number.isFinite(p.liters)),
+                      }),
                     });
                     setEditing(null);
                     reload();
