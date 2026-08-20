@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api, deviceState, getJson, relativeTime } from '../api';
 
+export const CATEGORIES = [
+  ['bicycle', '🚲 Велосипед'],
+  ['moped', '🛵 Мопед'],
+  ['car', '🚗 Машина'],
+  ['truck', '🚚 Грузовая машина'],
+  ['boat', '🛥️ Лодка'],
+];
+const CATEGORY_EMOJI = Object.fromEntries(CATEGORIES.map(([k, v]) => [k, v.split(' ')[0]]));
+
 const COMMAND_LABELS = {
   positionSingle: 'Запросить позицию',
   rebootDevice: 'Перезагрузить трекер',
@@ -14,7 +23,7 @@ export default function Devices({ devices, users, search, reload }) {
   const [commandsFor, setCommandsFor] = useState(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null); // { device, name, model }
-  const [form, setForm] = useState({ name: '', uniqueId: '', model: '', userId: '' });
+  const [form, setForm] = useState({ name: '', uniqueId: '', model: '', category: 'car', userId: '' });
   const [error, setError] = useState(null);
 
   // владельцы — из нашей карты прав (deviceIds пользователей)
@@ -69,11 +78,12 @@ export default function Devices({ devices, users, search, reload }) {
           name: form.name,
           uniqueId: form.uniqueId,
           model: form.model || undefined,
+          category: form.category || undefined,
           userId: form.userId ? Number(form.userId) : undefined,
         }),
       });
       setAdding(false);
-      setForm({ name: '', uniqueId: '', model: '', userId: '' });
+      setForm({ name: '', uniqueId: '', model: '', category: 'car', userId: '' });
       reload();
     } catch (e) {
       setError(e.message);
@@ -98,7 +108,7 @@ export default function Devices({ devices, users, search, reload }) {
             const fw = positions[d.id]?.attributes?.versionFw;
             return (
               <tr key={d.id}>
-                <td><b>{d.name}</b></td>
+                <td><b>{CATEGORY_EMOJI[d.category] ? `${CATEGORY_EMOJI[d.category]} ` : ''}{d.name}</b></td>
                 <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{d.uniqueId}</td>
                 <td>
                   {d.model || (positions[d.id]?.protocol
@@ -115,6 +125,7 @@ export default function Devices({ devices, users, search, reload }) {
                     device: d,
                     name: d.name,
                     model: d.model ?? '',
+                    category: d.category ?? 'car',
                     sensorKey: calibrations[d.id]?.sensorKey ?? 'io270',
                     points: (calibrations[d.id]?.points ?? []).map((p) => ({ raw: String(p.raw), liters: String(p.liters) })),
                   })}>Изменить</button>
@@ -148,6 +159,12 @@ export default function Devices({ devices, users, search, reload }) {
             <div className="dialog-title">{editing.device.name}</div>
             <div className="field"><label>Название объекта</label><input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
             <div className="field"><label>Модель трекера</label><input className="input" placeholder="Teltonika FMC920" value={editing.model} onChange={(e) => setEditing({ ...editing, model: e.target.value })} /></div>
+            <div className="field">
+              <label>Тип объекта</label>
+              <select className="input" value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })}>
+                {CATEGORIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </div>
             <div className="field">
               <label>
                 Тарировка ДУТ — датчик{' '}
@@ -187,7 +204,7 @@ export default function Devices({ devices, users, search, reload }) {
                   try {
                     await api(`/admin/devices/${editing.device.id}`, {
                       method: 'PATCH',
-                      body: JSON.stringify({ name: editing.name, model: editing.model }),
+                      body: JSON.stringify({ name: editing.name, model: editing.model, category: editing.category }),
                     });
                     await api(`/admin/fuel-calibrations/${editing.device.id}`, {
                       method: 'POST',
@@ -219,7 +236,13 @@ export default function Devices({ devices, users, search, reload }) {
             <div className="dialog-title">Новый трекер</div>
             <div className="field"><label>Название объекта</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="field"><label>IMEI</label><input className="input" value={form.uniqueId} onChange={(e) => setForm({ ...form, uniqueId: e.target.value })} /></div>
-            <div className="field"><label>Модель</label><input className="input" placeholder="Teltonika FMB120" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} /></div>
+            <div className="field"><label>Модель</label><input className="input" placeholder="Teltonika FMC920" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} /></div>
+            <div className="field">
+              <label>Тип объекта</label>
+              <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                {CATEGORIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </div>
             <div className="field">
               <label>Клиент</label>
               <select className="input" value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })}>
