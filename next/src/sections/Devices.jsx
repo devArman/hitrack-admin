@@ -90,7 +90,7 @@ export default function Devices({ devices, users, search, reload }) {
       </div>
       <table className="table">
         <thead>
-          <tr><th>IMEI</th><th>Модель</th><th>Клиент / объект</th><th>Прошивка</th><th>Посл. пакет</th><th>Статус</th><th /></tr>
+          <tr><th>Название</th><th>IMEI</th><th>Модель</th><th>Клиент</th><th>Прошивка</th><th>Посл. пакет</th><th>Статус</th><th /></tr>
         </thead>
         <tbody>
           {filtered.map((d) => {
@@ -98,13 +98,14 @@ export default function Devices({ devices, users, search, reload }) {
             const fw = positions[d.id]?.attributes?.versionFw;
             return (
               <tr key={d.id}>
+                <td><b>{d.name}</b></td>
                 <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{d.uniqueId}</td>
                 <td>
                   {d.model || (positions[d.id]?.protocol
                     ? <span className="text-muted">{positions[d.id].protocol} (протокол)</span>
                     : '—')}
                 </td>
-                <td><b>{owners[d.id] ?? '—'}</b><div className="text-muted" style={{ fontSize: 12 }}>{d.name}</div></td>
+                <td>{owners[d.id] ?? '—'}</td>
                 <td>{fw ?? '—'}</td>
                 <td className="text-muted">{relativeTime(d.lastUpdate)}</td>
                 <td><span className={state.tagClass}>{state.label}</span></td>
