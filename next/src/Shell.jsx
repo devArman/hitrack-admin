@@ -4,6 +4,7 @@ import Dashboard from './sections/Dashboard';
 import Clients from './sections/Clients';
 import Groups from './sections/Groups';
 import Announcements from './sections/Announcements';
+import Geofences from './sections/Geofences';
 import Devices from './sections/Devices';
 import Billing from './sections/Billing';
 import Sim from './sections/Sim';
@@ -16,6 +17,7 @@ const NAV = [
   ['clients', 'Клиенты', 'users'],
   ['groups', 'Группы', 'boxes'],
   ['announcements', 'Объявления', 'megaphone'],
+  ['geofences', 'Геозоны', 'hexagon'],
   ['devices', 'Трекеры', 'cpu'],
   ['billing', 'Биллинг', 'receipt'],
   ['sim', 'SIM-карты', 'smartphone'],
@@ -25,7 +27,7 @@ const NAV = [
 ];
 
 const TITLES = {
-  dash: 'Дашборд', clients: 'Клиенты', groups: 'Группы', announcements: 'Объявления', devices: 'Устройства / трекеры', billing: 'Биллинг и тарифы',
+  dash: 'Дашборд', clients: 'Клиенты', groups: 'Группы', announcements: 'Объявления', geofences: 'Геозоны', devices: 'Устройства / трекеры', billing: 'Биллинг и тарифы',
   sim: 'SIM-карты', orders: 'Заявки на установку', users: 'Пользователи и роли', logs: 'Логи и мониторинг',
 };
 
@@ -112,11 +114,12 @@ export default function Shell({ user, devices, users, reload }) {
             </div>
           </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: section === 'geofences' ? 'hidden' : 'auto', display: section === 'geofences' ? 'flex' : 'block' }}>
           {section === 'dash' && <Dashboard {...sectionProps} />}
           {section === 'clients' && <Clients {...sectionProps} />}
           {section === 'groups' && <Groups {...sectionProps} />}
           {section === 'announcements' && <Announcements {...sectionProps} />}
+          {section === 'geofences' && <Geofences {...sectionProps} />}
           {section === 'devices' && <Devices {...sectionProps} />}
           {section === 'billing' && <Billing {...sectionProps} />}
           {section === 'sim' && <Sim {...sectionProps} />}

@@ -1,0 +1,102 @@
+import { useEffect, useState } from 'react';
+import GeoMap from '../GeoMap';
+import { api, getJson } from '../api';
+import { Blueprint } from '../ui';
+
+/** Геозоны платформы: общие (создаёт админ) и клиентские; админ видит и может удалять все. */
+export default function Geofences({ users, search }) {
+  const [zones, setZones] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [drawing, setDrawing] = useState(false);
+  const [points, setPoints] = useState([]);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = () => getJson('/geofences').then(setZones).catch(() => setZones([]));
+  useEffect(() => { load(); }, []);
+
+  const ownerName = (zone) => {
+    if (zone.shared) return 'общая';
+    return users.find((u) => u.id === zone.ownerUserId)?.name ?? 'клиентская';
+  };
+
+  const q = search.trim().toLowerCase();
+  const filtered = (zones ?? []).filter((z) => !q || z.name.toLowerCase().includes(q));
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const area = `POLYGON((${points.map((p) => `${p.latitude.toFixed(6)} ${p.longitude.toFixed(6)}`).join(', ')}))`;
+      await api('/geofences', { method: 'POST', body: JSON.stringify({ name: name.trim(), area }) });
+      setDrawing(false);
+      setPoints([]);
+      setName('');
+      load();
+    } catch (e) {
+      alert(`Не удалось сохранить: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (zone) => {
+    if (!window.confirm(`Удалить геозону «${zone.name}»? Она пропадёт и у клиентов.`)) return;
+    await api(`/geofences/${zone.id}`, { method: 'DELETE' });
+    load();
+  };
+
+  return (
+    <div style={{ flex: 1, display: 'flex', minHeight: 0, height: '100%' }}>
+      <div style={{ width: 360, flex: 'none', borderRight: '1px solid var(--color-divider)', overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {!drawing && (
+          <button className="btn btn-primary" onClick={() => { setDrawing(true); setPoints([]); setName(''); setSelectedId(null); }}>
+            + Новая общая геозона
+          </button>
+        )}
+        {drawing && (
+          <Blueprint style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <b style={{ fontSize: 14 }}>Новая геозона (общая для всех клиентов)</b>
+            <div className="text-muted" style={{ fontSize: 12 }}>
+              Кликай по карте, чтобы поставить углы зоны (минимум 3 точки). Точек: {points.length}
+            </div>
+            <input className="input" placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy || points.length < 3 || !name.trim()} onClick={save}>
+                {busy ? 'Сохранение…' : 'Сохранить'}
+              </button>
+              <button className="btn btn-secondary" onClick={() => setPoints(points.slice(0, -1))} disabled={!points.length}>↶</button>
+              <button className="btn btn-secondary" onClick={() => { setDrawing(false); setPoints([]); }}>Отмена</button>
+            </div>
+          </Blueprint>
+        )}
+        {zones === null && <div className="text-muted" style={{ fontSize: 13 }}>Загрузка…</div>}
+        {filtered.map((zone) => (
+          <Blueprint
+            key={zone.id}
+            onClick={() => setSelectedId(selectedId === zone.id ? null : zone.id)}
+            style={{
+              padding: 10, fontSize: 13, cursor: 'pointer',
+              ...(selectedId === zone.id ? {
+                borderColor: 'var(--color-accent)',
+                background: 'color-mix(in srgb, var(--color-accent) 8%, transparent)',
+              } : {}),
+            }}
+          >
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <b>{zone.name}</b>
+              <span className={zone.shared ? 'tag tag-accent-2' : 'tag tag-accent'} style={{ marginLeft: 'auto' }}>
+                {ownerName(zone)}
+              </span>
+              <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={(e) => { e.stopPropagation(); remove(zone); }}>Удалить</button>
+            </div>
+          </Blueprint>
+        ))}
+      </div>
+      <GeoMap
+        geofences={drawing ? [] : (zones ?? []).filter((z) => z.id === selectedId)}
+        onMapClick={drawing ? (p) => setPoints((prev) => [...prev, p]) : undefined}
+        drawPoints={drawing ? points : []}
+      />
+    </div>
+  );
+}
