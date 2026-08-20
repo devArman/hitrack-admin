@@ -12,6 +12,7 @@ export default function Devices({ devices, users, search, reload }) {
   const [positions, setPositions] = useState({});
   const [commandsFor, setCommandsFor] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null); // { device, name, model }
   const [form, setForm] = useState({ name: '', uniqueId: '', model: '', userId: '' });
   const [error, setError] = useState(null);
 
@@ -94,12 +95,19 @@ export default function Devices({ devices, users, search, reload }) {
             return (
               <tr key={d.id}>
                 <td style={{ fontFamily: 'monospace', fontSize: 13 }}>{d.uniqueId}</td>
-                <td>{d.model || '—'}</td>
+                <td>
+                  {d.model || (positions[d.id]?.protocol
+                    ? <span className="text-muted">{positions[d.id].protocol} (протокол)</span>
+                    : '—')}
+                </td>
                 <td><b>{owners[d.id] ?? '—'}</b><div className="text-muted" style={{ fontSize: 12 }}>{d.name}</div></td>
                 <td>{fw ?? '—'}</td>
                 <td className="text-muted">{relativeTime(d.lastUpdate)}</td>
                 <td><span className={state.tagClass}>{state.label}</span></td>
-                <td><button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => openCommands(d)}>Команды</button></td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => openCommands(d)}>Команды</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setEditing({ device: d, name: d.name, model: d.model ?? '' })}>Изменить</button>
+                </td>
               </tr>
             );
           })}
@@ -118,6 +126,37 @@ export default function Devices({ devices, users, search, reload }) {
             </div>
             <div className="dialog-actions">
               <button className="btn btn-secondary" onClick={() => setCommandsFor(null)}>Закрыть</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <div className="dialog-backdrop" onClick={() => setEditing(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-title">{editing.device.name}</div>
+            <div className="field"><label>Название объекта</label><input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
+            <div className="field"><label>Модель трекера</label><input className="input" placeholder="Teltonika FMB120" value={editing.model} onChange={(e) => setEditing({ ...editing, model: e.target.value })} /></div>
+            <div className="dialog-actions">
+              <button className="btn btn-secondary" onClick={() => setEditing(null)}>Отмена</button>
+              <button
+                className="btn btn-primary"
+                disabled={!editing.name.trim()}
+                onClick={async () => {
+                  try {
+                    await api(`/admin/devices/${editing.device.id}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({ name: editing.name, model: editing.model }),
+                    });
+                    setEditing(null);
+                    reload();
+                  } catch (e) {
+                    alert(`Не удалось сохранить: ${e.message}`);
+                  }
+                }}
+              >
+                Сохранить
+              </button>
             </div>
           </div>
         </div>
