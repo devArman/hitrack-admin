@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// приложение живёт на admin.hitrack.am/next/ (nginx alias /var/www/admin-next)
+// основное приложение: корень домена (бывший старый кабинет — в бэкапе на сервере)
 export default defineConfig({
-  base: '/next/',
+  base: '/',
   plugins: [react()],
   server: {
     proxy: {

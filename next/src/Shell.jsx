@@ -39,7 +39,7 @@ export default function Shell({ user, devices, users }) {
     <div data-theme={theme} style={{ display: 'flex', height: '100vh', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)', overflow: 'hidden' }}>
       <div style={{ width: 216, flex: 'none', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--color-divider)', background: 'var(--color-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--color-divider)' }}>
-          <img src="/next/logo.svg" alt="HiTrack" style={{ width: 34, height: 34 }} />
+          <img src="/logo.svg" alt="HiTrack" style={{ width: 34, height: 34 }} />
           <div>
             <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 17, letterSpacing: '.04em' }}>HITRACK</div>
             <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-accent-2)' }}>Администрирование</div>
