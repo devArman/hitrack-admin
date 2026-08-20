@@ -29,8 +29,30 @@ const TITLES = {
   sim: 'SIM-карты', orders: 'Заявки на установку', users: 'Пользователи и роли', logs: 'Логи и мониторинг',
 };
 
+
+// раздел живёт в URL (#/dash, #/clients…): F5 возвращает туда же, работает «назад»
+function useHashSection(valid, fallback) {
+  const read = () => {
+    const h = window.location.hash.replace(/^#\/?/, '');
+    return valid.includes(h) ? h : fallback;
+  };
+  const [section, setSection] = useState(read);
+  useEffect(() => {
+    const onHash = () => setSection(read());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (window.location.hash.replace(/^#\/?/, '') !== section) {
+      window.history.replaceState(null, '', `#/${section}`);
+    }
+  }, [section]);
+  return [section, setSection];
+}
+
 export default function Shell({ user, devices, users, reload }) {
-  const [section, setSection] = useState('dash');
+  const [section, setSection] = useHashSection(NAV.map(([id]) => id), 'dash');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') ?? 'light');
   const [search, setSearch] = useState('');
 

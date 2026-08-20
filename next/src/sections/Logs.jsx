@@ -41,9 +41,9 @@ export default function Logs({ devices }) {
     } else {
       setEvents([]);
     }
-    // разово при открытии раздела
+    // при открытии; повтор, когда приехал список устройств (прямой заход по URL)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [devices.length > 0]);
 
   const online = devices.filter((d) => d.status === 'online').length;
   const nameById = Object.fromEntries(devices.map((d) => [d.id, d.name]));
